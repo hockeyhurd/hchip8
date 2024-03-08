@@ -1,4 +1,5 @@
 use crate::Mem;
+use crate::hw::opcode::Opcode;
 
 use std::collections::HashMap;
 
@@ -79,6 +80,11 @@ impl CPU
         self.halted = true;
     }
 
+    fn has_stack_space(&self) -> bool
+    {
+        (self.sp as usize) < self.stack_block.size()
+    }
+
     #[allow(dead_code)]
     fn pop_stack(&mut self) -> Option<u16>
     {
@@ -124,42 +130,84 @@ impl CPU
             return;
         }
 
-        let opcode: u16 = self.mem.read_u16(pc_ext).expect("Ran out of memory (logic error with pc register and main memory capacity).");
+        let raw_opcode: u16 = self.mem.read_u16(pc_ext).expect("Ran out of memory (logic error with pc register and main memory capacity).");
         self.pc += 2;
 
         // Decode:
-        // opcode split into 4-bit values ABCD
-        let a: u16 = (opcode >> 12) & 0x000F;
-        let b: u16 = (opcode >> 8) & 0x000F;
-        let c: u16 = (opcode >> 4) & 0x000F;
-        let d: u16 = opcode & 0x000F;
+        let opcode = Opcode::new(raw_opcode);
 
         // Execute:
         // TODO: Consider moving this to a HashMap??
-        match a
+        match opcode.a
         {
             // Call instruction
             0 => {
-                // NOTE: if all 0s (NULL) we will use this as a pseudo halt instruction.
-                self.set_halted();
+                if opcode.b == 0
+                {
+                    if opcode.c == 0 && opcode.d == 0
+                    {
+                        // NOTE: if all 0s (NULL) we will use this as a pseudo halt instruction.
+                        self.set_halted();
+                    }
+
+                    // TODO: 'disp_clear()'
+                    else if opcode.c == 0x0E && opcode.d == 0x00
+                    {
+                        println!("disp_clear() is not yet supported... this instruction will be no-op'd");
+                        return;
+                    }
+
+                    else if opcode.c == 0x0E && opcode.d == 0x0E
+                    {
+                        if self.sp < 2
+                        {
+                            println!("[ERROR]: Return instruction was made but we do not have an address to return to... The system will be halted.");
+                            self.set_halted();
+                            return;
+                        }
+
+                        self.sp -= 2;
+                        self.pc = self.stack_block.read_u16(self.sp as usize).expect("Failed to unwrap Option during return instruction.");
+                    }
+
+                    else
+                    {
+                        println!("[1] Could not find instruction for opcode {:?}", opcode);
+                    }
+                }
+
+                // Call instruction
+                else
+                {
+                    if !self.has_stack_space()
+                    {
+                        println!("[ERROR]: Call instruction was made but we are out of stack space... The system will be halted.");
+                        self.set_halted();
+                        return;
+                    }
+
+                    self.stack_block.write_u16(self.sp as usize, self.pc);
+                    self.sp += 2;
+                    self.pc = opcode.raw & 0x0FFF;
+                }
             },
             // Jump to 12-bit address.
             1 => {
-                let to_addr: u16 = opcode & 0x0FFF;
+                let to_addr: u16 = opcode.raw & 0x0FFF;
                 self.pc = to_addr;
             },
             // Set register 'b' to value 'c|d'
             6 => {
-                let reg = EnumRegister::VALUES[b as usize];
-                let value: u8 = (opcode & 0x00FF) as u8;
+                let reg = EnumRegister::VALUES[opcode.b as usize];
+                let value: u8 = (opcode.raw & 0x00FF) as u8;
                 self.write_register(reg, value);
             },
             8 => {
-                let regb = EnumRegister::VALUES[b as usize];
-                let regc = EnumRegister::VALUES[c as usize];
+                let regb = EnumRegister::VALUES[opcode.b as usize];
+                let regc = EnumRegister::VALUES[opcode.c as usize];
                 let value: u8 = self.read_register(regc);
 
-                match d
+                match opcode.d
                 {
                     0 => {
                         self.write_register(regb, value);
@@ -198,10 +246,10 @@ impl CPU
                         self.write_register(EnumRegister::VF, (cur_value & 0x80) >> 7);
                         self.write_register(regb, cur_value << 1);
                     },
-                    _ => { println!("Could not find instruction for opcode {}", opcode); }
+                    _ => { println!("[2] Could not find instruction for opcode {:?}", opcode); }
                 }
             },
-            _ => { println!("Could not find instruction for opcode {}", opcode); }
+            _ => { println!("[3] Could not find instruction for opcode {:?}", opcode); }
         }
     }
 
@@ -262,10 +310,12 @@ mod tests
         for i in 0..half_size
         {
             let ret_address = i + 2;
+            assert!(cpu.has_stack_space());
             assert!(cpu.push_stack(ret_address));
         }
 
         // Try to push one more
+        assert!(!cpu.has_stack_space());
         assert!(!cpu.push_stack(0xFFFF));
 
         // Pop until empty
@@ -278,6 +328,7 @@ mod tests
         }
 
         // Try to pop one more
+        assert!(cpu.has_stack_space());
         assert!(cpu.pop_stack().is_none());
     }
 
@@ -712,6 +763,87 @@ mod tests
 
         // Verify we jumped to the correct address.
         assert_eq!(cpu.pc, jump_addr);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_display_clear_instruction_does_no_op()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity);
+
+        let mut mem_addr = cpu.pc as usize;
+
+        // display clear instruction
+        cpu.mem.write_u16(mem_addr, 0x00E0);
+        mem_addr += 2;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+
+        // This should jump to 
+        cpu.tick();
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_call_set_return_instructions()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity);
+
+        let mut mem_addr = cpu.pc as usize;
+        let call_addr = (capacity as u16) - 8;
+
+        // Call instruction
+        println!("call_addr: {:#04x}", call_addr);
+        cpu.mem.write_u16(mem_addr, call_addr);
+        let ret_addr = mem_addr + 2;
+        mem_addr = call_addr as usize;
+
+        // Then do set
+        cpu.mem.write_u16(mem_addr, 0x61AF);
+        mem_addr += 2;
+
+        // Then do return
+        cpu.mem.write_u16(mem_addr, 0x00EE);
+        mem_addr = ret_addr;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+        assert_ne!(cpu.pc, call_addr);
+
+        // This should be the call instruction
+        cpu.tick();
+
+        // Verify we called/jumped to the correct address.
+        assert_eq!(cpu.pc, call_addr);
+
+        // Execute the set instruction
+        assert_ne!(cpu.read_register(EnumRegister::V1), 0xAF);
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0xAF);
+
+        // Execute the return instruction
+        assert!(!cpu.is_halted());
+        assert_ne!(cpu.pc as usize, ret_addr);
+        cpu.tick();
+        assert_eq!(cpu.pc as usize, ret_addr);
 
         // Execute halt instruction
         assert!(!cpu.is_halted());
