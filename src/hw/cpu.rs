@@ -69,7 +69,6 @@ impl CPU
         self.registers.insert(EnumRegister::VF, 0);
     }
 
-    #[allow(dead_code)]
     pub fn is_halted(&self) -> bool
     {
         self.halted
@@ -253,14 +252,12 @@ impl CPU
         }
     }
 
-    #[allow(dead_code)]
     fn read_register(&self, reg: EnumRegister) -> u8
     {
         let value = self.registers.get(&reg).expect("Failed to unwrap during read_register routine");
         *value
     }
 
-    #[allow(dead_code)]
     fn write_register(&mut self, reg: EnumRegister, value: u8)
     {
         let value_at = self.registers.get_mut(&reg).expect("Failed to unwrap during write_register routine");
@@ -807,7 +804,6 @@ mod tests
         let call_addr = (capacity as u16) - 8;
 
         // Call instruction
-        println!("call_addr: {:#04x}", call_addr);
         cpu.mem.write_u16(mem_addr, call_addr);
         let ret_addr = mem_addr + 2;
         mem_addr = call_addr as usize;
