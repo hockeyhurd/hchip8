@@ -13,7 +13,7 @@ impl Timer
     }
 
     #[allow(dead_code)]
-    pub fn elapsed_time(&self) -> std::time::Duration
+    fn elapsed_time(&self) -> std::time::Duration
     {
         let now = std::time::Instant::now();
         now - self.start_time
@@ -47,7 +47,6 @@ impl Timer
 #[cfg(test)]
 mod tests
 {
-    #[allow(unused_imports)]
     use crate::hw::timer::Timer;
 
     #[test]

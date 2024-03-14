@@ -112,7 +112,6 @@ impl CPU
         return false;
     }
 
-    #[allow(dead_code)]
     pub fn tick(&mut self)
     {
         if self.is_halted()
