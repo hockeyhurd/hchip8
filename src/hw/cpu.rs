@@ -112,6 +112,32 @@ impl CPU
         return false;
     }
 
+    pub fn print_state(&self, verbose: bool)
+    {
+        let mut stream = String::with_capacity(0x100);
+        stream += "\tMem block size: ";
+        stream += &self.mem.get_capacity().to_string();
+
+        if verbose
+        {
+            stream += "\n\tStack block: {\n";
+            self.mem.print_state(&mut stream);
+            stream += "\n\t}";
+        }
+
+        stream += "\n\tpc: ";
+        stream += &self.pc.to_string();
+        stream += "\n\tsp: ";
+        stream += &self.sp.to_string();
+        stream += "\n\tStack block: {\n";
+        self.stack_block.print_state(&mut stream);
+        stream += "\n\t}";
+        stream += "\n\thalted: ";
+        stream += &self.halted.to_string();
+
+        println!("{}", stream);
+    }
+
     pub fn tick(&mut self)
     {
         if self.is_halted()

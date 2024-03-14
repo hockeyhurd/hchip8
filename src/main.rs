@@ -14,18 +14,15 @@ fn main()
     let cycle_time_ms = std::time::Duration::from_millis(10);
     let mut timer = Timer::new(cycle_time_ms);
 
-    loop
+    while !cpu.is_halted()
     {
-        if cpu.is_halted()
-        {
-            println!("CPU is halted");
-            break;
-        }
-
         cpu.tick();
         timer.sleep_for_remaining();
         timer.reset();
     }
+
+    println!("CPU is halted\nDumping final CPU state:");
+    cpu.print_state(false);
 
     println!("End of emulator");
 }

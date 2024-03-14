@@ -77,6 +77,27 @@ impl Mem
 
         return false;
     }
+
+    pub fn print_state(&self, stream: &mut String)
+    {
+        for addr in 0..self.get_capacity()
+        {
+            if addr % 8 == 0
+            {
+                if addr > 0
+                {
+                    stream.push('\n');
+                }
+
+                stream.push('\t');
+                stream.push('\t');
+            }
+
+            let value = self.read_u8(addr).expect("Expected to unwrap during 'print_stack_block'");
+            *stream += &value.to_string();
+            stream.push(' ');
+        }
+    }
 }
 
 #[cfg(test)]
