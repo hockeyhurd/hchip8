@@ -272,6 +272,19 @@ impl CPU
                     _ => { println!("[2] Could not find instruction for opcode {:?}", opcode); }
                 }
             },
+            // NOTE: Per optable the 'd' position should be '0'. Our implementation will ignore
+            // this completely.
+            9 => {
+                let regb = EnumRegister::VALUES[opcode.b as usize];
+                let regc = EnumRegister::VALUES[opcode.c as usize];
+                let left_value = self.read_register(regb);
+                let right_value = self.read_register(regc);
+
+                if left_value != right_value
+                {
+                    self.pc += 2;
+                }
+            },
             _ => { println!("[3] Could not find instruction for opcode {:?}", opcode); }
         }
     }
@@ -865,6 +878,114 @@ mod tests
         assert_ne!(cpu.pc as usize, ret_addr);
         cpu.tick();
         assert_eq!(cpu.pc as usize, ret_addr);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_cond_instruction_no_skip()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity, STARTING_PC);
+
+        let mut mem_addr = cpu.pc as usize;
+        let jump_addr = (capacity as u16) - 4;
+
+        cpu.mem.write_u16(mem_addr, 0x6101);
+        mem_addr += 2;
+
+        cpu.mem.write_u16(mem_addr, 0x9120);
+        mem_addr += 2;
+
+        cpu.mem.write_u16(mem_addr, 0x1000 | jump_addr);
+        mem_addr = jump_addr as usize;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+
+        // Make sure register is not our value first
+        assert_ne!(cpu.read_register(EnumRegister::V1), 1);
+
+        // This should set V1 = 0x01
+        cpu.tick();
+
+        // Verify V1 register is correct
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0x01);
+
+        // This should check if V1 != V2
+        cpu.tick();
+
+        // Verify we did NOT jump to the address.
+        assert_ne!(cpu.pc, jump_addr);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_cond_instruction_do_skip()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity, STARTING_PC);
+
+        let mut mem_addr = cpu.pc as usize;
+        let jump_addr = (capacity as u16) - 4;
+
+        cpu.mem.write_u16(mem_addr, 0x6101);
+        mem_addr += 2;
+
+        cpu.mem.write_u16(mem_addr, 0x8210);
+        mem_addr += 2;
+
+        cpu.mem.write_u16(mem_addr, 0x9120);
+        mem_addr += 2;
+
+        cpu.mem.write_u16(mem_addr, 0x1000 | jump_addr);
+        mem_addr = jump_addr as usize;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+
+        // Make sure register is not our value first
+        assert_ne!(cpu.read_register(EnumRegister::V1), 1);
+
+        // This should set V1 = 0x01
+        cpu.tick();
+
+        // Verify V1 register is correct
+        assert_eq!(cpu.read_register(EnumRegister::V1), 1);
+
+        // Make sure register is not our value first
+        assert_ne!(cpu.read_register(EnumRegister::V2), 1);
+
+        // This should set V2 = 0x01
+        cpu.tick();
+
+        // Verify V1 register is correct
+        assert_eq!(cpu.read_register(EnumRegister::V2), 1);
+
+        // This should check if V1 != V2
+        cpu.tick();
+
+        // Verify we did NOT jump yet to the address.
+        assert_ne!(cpu.pc, jump_addr);
+
+        // This should check if V1 != V2
+        cpu.tick();
+
+        // Verify we did jump to the address.
+        assert_eq!(cpu.pc, jump_addr);
 
         // Execute halt instruction
         assert!(!cpu.is_halted());
