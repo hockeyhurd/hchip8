@@ -24,8 +24,7 @@ fn main()
         None => {},
     }
 
-    let capacity: usize = 4096;
-    let mut cpu = CPU::new(capacity);
+    let mut cpu = CPU::new(config_data.get_mem_size() as usize, config_data.get_starting_pc());
 
     // 100 Hz.
     let cycle_time_ms = std::time::Duration::from_millis(10);

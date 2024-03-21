@@ -3,7 +3,6 @@ use crate::hw::opcode::Opcode;
 
 use std::collections::HashMap;
 
-const STARTING_PC: u16 = 0x200;
 const STACK_BLOCK_SIZE: u8 = 64;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -33,13 +32,13 @@ pub struct CPU
 
 impl CPU
 {
-    pub fn new(capacity: usize) -> Self
+    pub fn new(capacity: usize, starting_pc: u16) -> Self
     {
         // According to wikipedia, chip8 reserves the first 512 bytes of main memory.
         // For now, we are assuming the stack pointer will be the first address after that (512).
         let mut result = Self {
             mem: Mem::new(capacity), registers: HashMap::new(),
-            pc : STARTING_PC, sp: 0,
+            pc : starting_pc, sp: 0,
             stack_block: Mem::new(STACK_BLOCK_SIZE as usize),
             halted: false,
         };
@@ -295,16 +294,17 @@ mod tests
 {
     #[allow(unused_imports)]
     use crate::hw::cpu::CPU;
-    use crate::hw::cpu::STARTING_PC;
     use crate::hw::cpu::STACK_BLOCK_SIZE;
 
     use super::EnumRegister;
+
+    const STARTING_PC: u16 = 0x200;
 
     #[test]
     fn cpu_and_registers_are_init_correctly()
     {
         let capacity: usize = 4096;
-        let cpu = CPU::new(capacity);
+        let cpu = CPU::new(capacity, STARTING_PC);
         assert_eq!(cpu.mem.size(), capacity);
 
         let value: u8 = 0;
@@ -324,7 +324,7 @@ mod tests
     fn fill_stack_then_empty()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         assert_eq!(cpu.stack_block.size(), STACK_BLOCK_SIZE as usize);
 
         let half_size = (cpu.stack_block.size() / 2) as u16;
@@ -358,7 +358,7 @@ mod tests
     fn fill_registers_and_readback()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut i = 0;
 
         for reg in EnumRegister::VALUES
@@ -374,7 +374,7 @@ mod tests
     fn execute_halt_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
 
         let mem_addr = cpu.pc as usize;
 
@@ -391,7 +391,7 @@ mod tests
     fn execute_set_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
 
         let mut mem_addr = cpu.pc as usize;
 
@@ -423,7 +423,7 @@ mod tests
     fn execute_assign_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A0);
@@ -467,7 +467,7 @@ mod tests
     fn execute_or_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A0);
@@ -511,7 +511,7 @@ mod tests
     fn execute_and_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
@@ -555,7 +555,7 @@ mod tests
     fn execute_xor_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
@@ -599,7 +599,7 @@ mod tests
     fn execute_plus_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
@@ -643,7 +643,7 @@ mod tests
     fn execute_rshift_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6103);
@@ -682,7 +682,7 @@ mod tests
     fn execute_lshift_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6183);
@@ -721,7 +721,7 @@ mod tests
     fn execute_inv_minus_equal_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6101);
@@ -765,7 +765,7 @@ mod tests
     fn execute_jump_instruction()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
 
         let mut mem_addr = cpu.pc as usize;
         let jump_addr = (capacity as u16) - 4;
@@ -796,7 +796,7 @@ mod tests
     fn execute_display_clear_instruction_does_no_op()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
 
         let mut mem_addr = cpu.pc as usize;
 
@@ -823,7 +823,7 @@ mod tests
     fn execute_call_set_return_instructions()
     {
         let capacity: usize = 4096;
-        let mut cpu = CPU::new(capacity);
+        let mut cpu = CPU::new(capacity, STARTING_PC);
 
         let mut mem_addr = cpu.pc as usize;
         let call_addr = (capacity as u16) - 8;

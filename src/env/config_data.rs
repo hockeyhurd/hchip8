@@ -1,8 +1,8 @@
 pub struct ConfigData
 {
     args: Vec<String>,
-    starting_pc: u16,
     mem_size: u16,
+    starting_pc: u16,
 }
 
 impl ConfigData
@@ -13,15 +13,15 @@ impl ConfigData
     }
 
     #[allow(dead_code)]
-    pub fn get_starting_pc(&self) -> u16
-    {
-        self.starting_pc
-    }
-
-    #[allow(dead_code)]
     pub fn get_mem_size(&self) -> u16
     {
         self.mem_size
+    }
+
+    #[allow(dead_code)]
+    pub fn get_starting_pc(&self) -> u16
+    {
+        self.starting_pc
     }
 
     pub fn parse(&mut self) -> Option<(i32, String)>
@@ -46,27 +46,7 @@ impl ConfigData
 
             let arg = self.args.get(i).unwrap();
 
-            if arg == "--pc"
-            {
-                let opt_next_arg = self.args.get(i + 1);
-
-                if opt_next_arg.is_none()
-                {
-                    return Some((-2, String::from("Expected another arg after '--pc'")));
-                }
-
-                let val_result = opt_next_arg.unwrap().parse::<u16>();
-
-                match val_result
-                {
-                    Ok(val) => { self.starting_pc = val; },
-                    Err(e) => { return Some((-2, e.to_string())); }
-                }
-
-                skip_next = true;
-            }
-
-            else if arg == "--mem-size"
+            if arg == "--mem-size"
             {
                 let opt_next_arg = self.args.get(i + 1);
 
@@ -80,6 +60,26 @@ impl ConfigData
                 match val_result
                 {
                     Ok(val) => { self.mem_size = val; },
+                    Err(e) => { return Some((-2, e.to_string())); }
+                }
+
+                skip_next = true;
+            }
+
+            else if arg == "--pc"
+            {
+                let opt_next_arg = self.args.get(i + 1);
+
+                if opt_next_arg.is_none()
+                {
+                    return Some((-2, String::from("Expected another arg after '--pc'")));
+                }
+
+                let val_result = opt_next_arg.unwrap().parse::<u16>();
+
+                match val_result
+                {
+                    Ok(val) => { self.starting_pc = val; },
                     Err(e) => { return Some((-2, e.to_string())); }
                 }
 
