@@ -3,7 +3,8 @@ use crate::hw::opcode::Opcode;
 
 use std::collections::HashMap;
 
-const STACK_BLOCK_SIZE: u8 = 64;
+const INSTRUCTION_SIZE: u16 = 2;
+const STACK_BLOCK_SIZE: u16 = 64;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum EnumRegister
@@ -25,7 +26,7 @@ pub struct CPU
     mem: Mem,
     registers: HashMap<EnumRegister, u8>,
     pc: u16,
-    sp: u8,
+    sp: u16,
     stack_block: Mem,
     halted: bool,
 }
@@ -103,7 +104,7 @@ impl CPU
         if self.sp < STACK_BLOCK_SIZE - 1
         {
             self.stack_block.write_u16(self.sp as usize, ret_address);
-            self.sp += 2;
+            self.sp += INSTRUCTION_SIZE;
 
             return true;
         }
@@ -154,7 +155,7 @@ impl CPU
         }
 
         let raw_opcode: u16 = self.mem.read_u16(pc_ext).expect("Ran out of memory (logic error with pc register and main memory capacity).");
-        self.pc += 2;
+        self.pc += INSTRUCTION_SIZE;
 
         // Decode:
         let opcode = Opcode::new(raw_opcode);
@@ -210,7 +211,7 @@ impl CPU
                     }
 
                     self.stack_block.write_u16(self.sp as usize, self.pc);
-                    self.sp += 2;
+                    self.sp += INSTRUCTION_SIZE;
                     self.pc = opcode.raw & 0x0FFF;
                 }
             },
@@ -282,7 +283,7 @@ impl CPU
 
                 if left_value != right_value
                 {
-                    self.pc += 2;
+                    self.pc += INSTRUCTION_SIZE;
                 }
             },
             _ => { println!("[3] Could not find instruction for opcode {:?}", opcode); }
@@ -307,6 +308,7 @@ mod tests
 {
     #[allow(unused_imports)]
     use crate::hw::cpu::CPU;
+    use crate::hw::cpu::INSTRUCTION_SIZE;
     use crate::hw::cpu::STACK_BLOCK_SIZE;
 
     use super::EnumRegister;
@@ -409,7 +411,7 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61AF);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -440,11 +442,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A0);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x620F);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8120);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -484,11 +486,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A0);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x620F);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8121);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -528,11 +530,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x622F);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8122);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -572,11 +574,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x622F);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8123);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -616,11 +618,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x61A3);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x622F);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8125);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -660,9 +662,9 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6103);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8106);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -699,9 +701,9 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6183);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x810E);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -738,11 +740,11 @@ mod tests
         let mut mem_addr = cpu.pc as usize;
 
         cpu.mem.write_u16(mem_addr, 0x6101);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x6203);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
         cpu.mem.write_u16(mem_addr, 0x8127);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -815,7 +817,7 @@ mod tests
 
         // display clear instruction
         cpu.mem.write_u16(mem_addr, 0x00E0);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then halt
         cpu.mem.write_u16(mem_addr, 0);
@@ -848,7 +850,7 @@ mod tests
 
         // Then do set
         cpu.mem.write_u16(mem_addr, 0x61AF);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         // Then do return
         cpu.mem.write_u16(mem_addr, 0x00EE);
@@ -895,10 +897,10 @@ mod tests
         let jump_addr = (capacity as u16) - 4;
 
         cpu.mem.write_u16(mem_addr, 0x6101);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         cpu.mem.write_u16(mem_addr, 0x9120);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         cpu.mem.write_u16(mem_addr, 0x1000 | jump_addr);
         mem_addr = jump_addr as usize;
@@ -940,13 +942,13 @@ mod tests
         let jump_addr = (capacity as u16) - 4;
 
         cpu.mem.write_u16(mem_addr, 0x6101);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         cpu.mem.write_u16(mem_addr, 0x8210);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         cpu.mem.write_u16(mem_addr, 0x9120);
-        mem_addr += 2;
+        mem_addr += INSTRUCTION_SIZE as usize;
 
         cpu.mem.write_u16(mem_addr, 0x1000 | jump_addr);
         mem_addr = jump_addr as usize;
