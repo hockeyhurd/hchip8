@@ -28,6 +28,7 @@ pub struct CPU
     pc: u16,
     sp: u16,
     stack_block: Mem,
+    reg_i: u16, // NOTE: 12-bits only.
     halted: bool,
 }
 
@@ -41,6 +42,7 @@ impl CPU
             mem: Mem::new(capacity), registers: HashMap::new(),
             pc : starting_pc, sp: 0,
             stack_block: Mem::new(STACK_BLOCK_SIZE as usize),
+            reg_i: 0,
             halted: false,
         };
 
@@ -165,7 +167,8 @@ impl CPU
         match opcode.a
         {
             // Call instruction
-            0 => {
+            0 =>
+            {
                 if opcode.b == 0
                 {
                     if opcode.c == 0 && opcode.d == 0
@@ -216,56 +219,67 @@ impl CPU
                 }
             },
             // Jump to 12-bit address.
-            1 => {
+            1 =>
+            {
                 let to_addr: u16 = opcode.raw & 0x0FFF;
                 self.pc = to_addr;
             },
             // Set register 'b' to value 'c|d'
-            6 => {
+            6 =>
+            {
                 let reg = EnumRegister::VALUES[opcode.b as usize];
                 let value: u8 = (opcode.raw & 0x00FF) as u8;
                 self.write_register(reg, value);
             },
-            8 => {
+            8 =>
+            {
                 let regb = EnumRegister::VALUES[opcode.b as usize];
                 let regc = EnumRegister::VALUES[opcode.c as usize];
                 let value: u8 = self.read_register(regc);
 
                 match opcode.d
                 {
-                    0 => {
+                    0 =>{
                         self.write_register(regb, value);
                     },
-                    1 => {
+                    1 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, cur_value | value)
                     },
-                    2 => {
+                    2 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, cur_value & value)
                     },
-                    3 => {
+                    3 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, cur_value ^ value)
                     },
-                    4 => {
+                    4 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, cur_value + value)
                     },
-                    5 => {
+                    5 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, cur_value - value)
                     },
-                    6 => {
+                    6 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(EnumRegister::VF, cur_value & 0x01);
                         self.write_register(regb, cur_value >> 1)
                     },
-                    7 => {
+                    7 =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(regb, value - cur_value)
                     },
-                    0x0E => {
+                    0x0E =>
+                    {
                         let cur_value = self.read_register(regb);
                         self.write_register(EnumRegister::VF, (cur_value & 0x80) >> 7);
                         self.write_register(regb, cur_value << 1);
@@ -275,7 +289,8 @@ impl CPU
             },
             // NOTE: Per optable the 'd' position should be '0'. Our implementation will ignore
             // this completely.
-            9 => {
+            9 =>
+            {
                 let regb = EnumRegister::VALUES[opcode.b as usize];
                 let regc = EnumRegister::VALUES[opcode.c as usize];
                 let left_value = self.read_register(regb);
@@ -286,7 +301,40 @@ impl CPU
                     self.pc += INSTRUCTION_SIZE;
                 }
             },
-            _ => { println!("[3] Could not find instruction for opcode {:?}", opcode); }
+            0x0A =>
+            {
+                self.reg_i = opcode.b << 8;
+                self.reg_i |= opcode.c << 4;
+                self.reg_i |= opcode.d;
+            },
+            0x0F =>
+            {
+                let last_reg = opcode.b as usize;
+
+                match opcode.raw & 0x00FF
+                {
+                    0x0055 =>
+                    {
+                        for offset in 0..last_reg + 1
+                        {
+                            let effective_address: usize = self.reg_i as usize + offset;
+                            let value = self.read_register(EnumRegister::VALUES[offset]);
+                            self.mem.write_u8(effective_address, value);
+                        }
+                    },
+                    0x0065 =>
+                    {
+                        for offset in 0..last_reg + 1
+                        {
+                            let effective_address: usize = self.reg_i as usize + offset;
+                            let value = self.mem.read_u8(effective_address).expect("Address out of space");
+                            self.write_register(EnumRegister::VALUES[offset], value);
+                        }
+                    },
+                    _ => { println!("[3] Could not find instruction for opcode {:?}", opcode);},
+                }
+            },
+            _ => { println!("[4] Could not find instruction for opcode {:?}", opcode); }
         }
     }
 
@@ -808,6 +856,37 @@ mod tests
     }
 
     #[test]
+    fn execute_set_reg_i_instruction()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity, STARTING_PC);
+
+        let mut mem_addr = cpu.pc as usize;
+        let value: u16 = 0x0123;
+
+        cpu.mem.write_u16(mem_addr, 0xA000 | value);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+        assert_ne!(cpu.reg_i, value);
+
+        // This should jump to 
+        cpu.tick();
+
+        // Verify we jumped to the correct address.
+        assert_eq!(cpu.reg_i, value);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
     fn execute_display_clear_instruction_does_no_op()
     {
         let capacity: usize = 4096;
@@ -988,6 +1067,95 @@ mod tests
 
         // Verify we did jump to the address.
         assert_eq!(cpu.pc, jump_addr);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_set_three_regs_dump_then_load_instructions()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity, STARTING_PC);
+
+        let mut mem_addr = cpu.pc as usize;
+
+        // Set registers V1, V3, and i
+        cpu.mem.write_u16(mem_addr, 0x6110);
+        mem_addr += INSTRUCTION_SIZE as usize;
+        cpu.mem.write_u16(mem_addr, 0x630F);
+        mem_addr += INSTRUCTION_SIZE as usize;
+        cpu.mem.write_u16(mem_addr, 0xAABC);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // Dump all registers starting at register 'i'.
+        cpu.mem.write_u16(mem_addr, 0xFF55);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // zero registers
+        cpu.mem.write_u16(mem_addr, 0x6100);
+        mem_addr += INSTRUCTION_SIZE as usize;
+        cpu.mem.write_u16(mem_addr, 0x6300);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // Load registers back in.
+        cpu.mem.write_u16(mem_addr, 0xFF65);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+
+        // Make sure register is not our value first
+        assert_ne!(cpu.read_register(EnumRegister::V1), 0x10);
+        assert_ne!(cpu.read_register(EnumRegister::V3), 0x0F);
+
+        // This should set V1 = 0x10
+        cpu.tick();
+
+        // Verify V1 register is correct
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0x10);
+
+        // This fhould set V3 = 0x0F
+        assert!(!cpu.is_halted());
+        cpu.tick();
+
+        // Verify register 'i' isn't set.
+        assert_ne!(cpu.reg_i, 0x0ABC);
+
+        // This should set register 'i'
+        assert!(!cpu.is_halted());
+        cpu.tick();
+
+        // Verify register 'i' is correct
+        assert_eq!(cpu.reg_i, 0x0ABC);
+
+        // This should Dump our registers to memory starting at the address in register 'i'.
+        assert!(!cpu.is_halted());
+        cpu.tick();
+
+        // Zero registers
+        assert_ne!(cpu.read_register(EnumRegister::V1), 0);
+        assert_ne!(cpu.read_register(EnumRegister::V3), 0);
+
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(!cpu.is_halted());
+        cpu.tick();
+
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0);
+        assert_eq!(cpu.read_register(EnumRegister::V3), 0);
+
+        // Load back into memory.
+        assert!(!cpu.is_halted());
+        cpu.tick();
+
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0x10);
+        assert_eq!(cpu.read_register(EnumRegister::V3), 0x0F);
 
         // Execute halt instruction
         assert!(!cpu.is_halted());
