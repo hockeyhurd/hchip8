@@ -94,7 +94,7 @@ impl CPU
             return None;
         }
 
-        self.sp -= 2;
+        self.sp -= INSTRUCTION_SIZE;
         let result = self.stack_block.read_u16(self.sp as usize);
 
         return result;
@@ -221,6 +221,21 @@ impl CPU
             // Jump to 12-bit address.
             1 =>
             {
+                let to_addr: u16 = opcode.raw & 0x0FFF;
+                self.pc = to_addr;
+            },
+            // Call to 12-bit address.
+            2 =>
+            {
+                if !self.has_stack_space()
+                {
+                    println!("[ERROR]: Call instruction was made but we are out of stack space... The system will be halted.");
+                    self.set_halted();
+                    return;
+                }
+
+                self.stack_block.write_u16(self.sp as usize, self.pc);
+                self.sp += INSTRUCTION_SIZE;
                 let to_addr: u16 = opcode.raw & 0x0FFF;
                 self.pc = to_addr;
             },
@@ -914,7 +929,7 @@ mod tests
     }
 
     #[test]
-    fn execute_call_set_return_instructions()
+    fn execute_call0_set_return_instructions()
     {
         let capacity: usize = 4096;
         let mut cpu = CPU::new(capacity, STARTING_PC);
@@ -924,6 +939,59 @@ mod tests
 
         // Call instruction
         cpu.mem.write_u16(mem_addr, call_addr);
+        let ret_addr = mem_addr + 2;
+        mem_addr = call_addr as usize;
+
+        // Then do set
+        cpu.mem.write_u16(mem_addr, 0x61AF);
+        mem_addr += INSTRUCTION_SIZE as usize;
+
+        // Then do return
+        cpu.mem.write_u16(mem_addr, 0x00EE);
+        mem_addr = ret_addr;
+
+        // Then halt
+        cpu.mem.write_u16(mem_addr, 0);
+
+        // Try executing our 'fake' program
+        assert!(!cpu.is_halted());
+        assert_ne!(cpu.pc, call_addr);
+
+        // This should be the call instruction
+        cpu.tick();
+
+        // Verify we called/jumped to the correct address.
+        assert_eq!(cpu.pc, call_addr);
+
+        // Execute the set instruction
+        assert_ne!(cpu.read_register(EnumRegister::V1), 0xAF);
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert_eq!(cpu.read_register(EnumRegister::V1), 0xAF);
+
+        // Execute the return instruction
+        assert!(!cpu.is_halted());
+        assert_ne!(cpu.pc as usize, ret_addr);
+        cpu.tick();
+        assert_eq!(cpu.pc as usize, ret_addr);
+
+        // Execute halt instruction
+        assert!(!cpu.is_halted());
+        cpu.tick();
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn execute_call2_set_return_instructions()
+    {
+        let capacity: usize = 4096;
+        let mut cpu = CPU::new(capacity, STARTING_PC);
+
+        let mut mem_addr = cpu.pc as usize;
+        let call_addr = (capacity as u16) - 8;
+
+        // Call instruction
+        cpu.mem.write_u16(mem_addr, 0x2000 | call_addr);
         let ret_addr = mem_addr + 2;
         mem_addr = call_addr as usize;
 
